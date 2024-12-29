@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { loginLimiter } = require('../middleware/rateLimit');
+const { validateRegister, validateLogin, validate } = require('../middleware/sanitizer');
 
 // JWT token oluşturma
 const generateToken = (user) => {
@@ -19,11 +21,10 @@ const generateToken = (user) => {
 };
 
 // Kayıt ol
-router.post('/register', async (req, res) => {
+router.post('/register', validateRegister, validate, async (req, res) => {
   try {
     const { email, username, password } = req.body;
 
-    // Email ve kullanıcı adı kontrolü
     const emailExists = await User.findOne({ email });
     if (emailExists) {
       return res.status(400).json({ error: 'Bu email adresi zaten kullanımda' });
@@ -34,15 +35,15 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Bu kullanıcı adı zaten kullanımda' });
     }
 
-    // Yeni kullanıcı oluştur
     const user = new User({
       email,
       username,
-      password // Gerçek uygulamada şifre hash'lenmelidir
+      password,
+      loginAttempts: 0,
+      lockUntil: null
     });
 
     await user.save();
-
     res.status(201).json({ message: 'Kayıt başarılı' });
   } catch (error) {
     console.error('Kayıt hatası:', error);
@@ -51,28 +52,64 @@ router.post('/register', async (req, res) => {
 });
 
 // Giriş yap
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, validateLogin, validate, async (req, res) => {
   try {
     const { username, password } = req.body;
+    console.log('Giriş denemesi:', { username });
 
-    // Email veya kullanıcı adı ile giriş
     const user = await User.findOne({
       $or: [
-        { email: username },
-        { username: username }
+        { email: username.toLowerCase() },
+        { username: username.toLowerCase() }
       ]
     });
 
-    if (!user || user.password !== password) {
+    console.log('Bulunan kullanıcı:', user ? 'Evet' : 'Hayır');
+
+    if (!user) {
+      console.log('Kullanıcı bulunamadı');
       return res.status(401).json({ error: 'Geçersiz kullanıcı adı/email veya şifre' });
     }
 
-    const token = generateToken(user);
+    // Hesap kilitli mi kontrol et
+    if (user.lockUntil && user.lockUntil > Date.now()) {
+      const remainingTime = Math.ceil((user.lockUntil - Date.now()) / 1000);
+      console.log('Hesap kilitli:', remainingTime, 'saniye');
+      return res.status(429).json({
+        error: `Hesabınız kilitli. ${remainingTime} saniye sonra tekrar deneyin.`
+      });
+    }
 
+    // Şifre kontrolü
+    if (user.password !== password) {
+      console.log('Şifre yanlış');
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+      
+      if (user.loginAttempts >= 6) {
+        user.lockUntil = Date.now() + (30 * 1000); // 30 saniye
+        user.loginAttempts = 0;
+        console.log('Hesap kilitlendi');
+      }
+      
+      await user.save();
+      
+      return res.status(401).json({ error: 'Geçersiz kullanıcı adı/email veya şifre' });
+    }
+
+    // Başarılı giriş
+    console.log('Giriş başarılı');
+    user.loginAttempts = 0;
+    user.lockUntil = null;
+    await user.save();
+
+    const token = generateToken(user);
     res.json({ token });
   } catch (error) {
-    console.error('Giriş hatası:', error);
-    res.status(500).json({ error: 'Sunucu hatası' });
+    console.error('Giriş hatası detayları:', error);
+    res.status(500).json({ 
+      error: 'Sunucu hatası',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

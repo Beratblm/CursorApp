@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -25,21 +27,45 @@ function Login() {
 
       if (response.ok) {
         localStorage.setItem('token', data.token);
-        navigate('/');
+        toast.success('Giriş başarılı! Yönlendiriliyorsunuz...', {
+          position: "top-right",
+          autoClose: 1500,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          onClose: () => navigate('/')
+        });
       } else {
-        alert(data.error);
+        // Hata mesajlarını özelleştir
+        if (response.status === 429) {
+          // Rate limit hatası
+          toast.error(data.error, {
+            position: "top-right",
+            autoClose: 5000
+          });
+        } else {
+          toast.error(data.error || 'Giriş başarısız', {
+            position: "top-right",
+            autoClose: 3000
+          });
+        }
       }
     } catch (error) {
-      alert('Giriş yapılırken bir hata oluştu');
+      toast.error('Bağlantı hatası oluştu', {
+        position: "top-right",
+        autoClose: 3000
+      });
     }
   };
 
   return (
-    <div className="container mt-5">
-      <div className={`card shadow ${darkMode ? 'dark' : ''}`}>
+    <div className="auth-container">
+      <ToastContainer />
+      <div className={`auth-card ${darkMode ? 'dark' : ''}`}>
         <div className="card-body">
-          <h2 className="card-title text-center mb-4">Giriş Yap</h2>
-          <form onSubmit={handleSubmit}>
+          <h2 className="card-title">Giriş Yap</h2>
+          <form onSubmit={handleSubmit} className="auth-form">
             <div className="mb-3">
               <label className="form-label">Kullanıcı Adı:</label>
               <input

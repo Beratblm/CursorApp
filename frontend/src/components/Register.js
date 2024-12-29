@@ -105,12 +105,12 @@ function Register() {
   };
 
   return (
-    <div className="container mt-5">
+    <div className="auth-container">
       <ToastContainer />
-      <div className={`card shadow ${darkMode ? 'dark' : ''}`}>
+      <div className={`auth-card ${darkMode ? 'dark' : ''}`}>
         <div className="card-body">
-          <h2 className="card-title text-center mb-4">Kayıt Ol</h2>
-          <form onSubmit={handleSubmit}>
+          <h2 className="card-title">Kayıt Ol</h2>
+          <form onSubmit={handleSubmit} className="auth-form">
             <div className="mb-3">
               <label className="form-label">Email:</label>
               <input

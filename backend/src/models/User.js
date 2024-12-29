@@ -20,6 +20,14 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Şifre gereklidir'],
     minlength: [6, 'Şifre en az 6 karakter olmalıdır']
   },
+  loginAttempts: {
+    type: Number,
+    default: 0
+  },
+  lockUntil: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
